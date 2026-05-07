@@ -1,52 +1,64 @@
-// src/hooks/useDeviceConnectionHook.ts
+// src/hooks/useDeviceConnection.ts
 import { useState, useCallback } from 'react';
-import { initializeConnection } from '../api/deviceService';
+import { deviceService } from '../api/deviceService';
+import { DDSDeviceSimulator } from '../api/DDSDeviceSimulator';
+import { TorDDSDevice } from '../types/deviceTypes';
 
-interface ConnectionState {
-    isConnected: boolean;
-    isInitialized: boolean;
-    statusMessage: string;
-}
+export function useDeviceConnection() {
+    const [device, setDevice] = useState<TorDDSDevice | null>(null);
+    const [isConnected, setIsConnected] = useState(false);
+    const [isInitializing, setIsInitializing] = useState(false);
+    const [status, setStatus] = useState('Отключено');
 
-/**
- * Хук для управления жизненным циклом подключения.
- */
-export const useDeviceConnectionHook = () => {
-    const [state, setState] = useState<ConnectionState>({
-        isConnected: false,
-        isInitialized: false,
-        statusMessage: 'Ожидание подключения...',
-    });
+    const connect = useCallback(async () => {
+        if (isConnected || isInitializing) return;
 
-    // Функция подключения (логика с кнопкой)
-    const connectDevice = useCallback(async () => {
-        setState({ isConnected: false, isInitialized: false, statusMessage: 'Сканирование USB...' });
+        setIsInitializing(true);
+        setStatus('Поиск устройства...');
 
         try {
-            const result = await initializeConnection();
-            if (result.success) {
-                setState({
-                    isConnected: true,
-                    isInitialized: true,
-                    statusMessage: result.message
-                });
-            } else {
-                setState(prev => ({ ...prev, statusMessage: `❌ ${result.message}` }));
-            }
-        } catch (error) {
-            setState(prev => ({ ...prev, statusMessage: 'Критическая ошибка связи.' }));
+            const dev = await deviceService.requestDevice();
+            setDevice(dev);
+            setStatus('Инициализация...');
+            await new Promise((r) => setTimeout(r, 300));
+
+            setIsConnected(true);
+            setStatus('Устройство подключено');
+        } catch {
+            setStatus('Ошибка подключения');
         }
+
+        setIsInitializing(false);
+    }, [isConnected, isInitializing]);
+
+    const connectSimulated = useCallback(async () => {
+        if (isConnected) return;
+
+        setStatus('Запуск симулятора...');
+        setIsInitializing(true);
+
+        const sim = new DDSDeviceSimulator();
+        await new Promise((r) => setTimeout(r, 300));
+
+        setDevice(sim);
+        setIsConnected(true);
+        setStatus('Симулятор активен');
+        setIsInitializing(false);
+    }, [isConnected]);
+
+    const disconnect = useCallback(() => {
+        setDevice(null);
+        setIsConnected(false);
+        setStatus('Отключено');
     }, []);
 
-    // Функция отключения
-    const disconnectDevice = useCallback(() => {
-        console.log("[HOOK] Отключение устройства...");
-        setState({
-            isConnected: false,
-            isInitialized: false,
-            statusMessage: 'Ожидание подключения...'
-        });
-    }, []);
-
-    return { connectionState: state, connectDevice, disconnectDevice };
-};
+    return {
+        device,
+        isConnected,
+        isInitializing,
+        status,
+        connect,
+        disconnect,
+        connectSimulated,
+    };
+}

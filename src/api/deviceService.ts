@@ -1,66 +1,75 @@
-// src/services/DeviceConstants.ts
+// src/api/deviceService.ts
+import {
+    TOR_DDS_VENDOR_ID,
+    TOR_DDS_PRODUCT_ID,
+    TOR_DDS_CMD,
+    TorDDSCommandPayload,
+    TorDDSDevice,
+} from '../types/deviceTypes';
+import { DDSDeviceSimulator } from './DDSDeviceSimulator';
 
-// Константы (имитация адресов регистров из Delphi)
-export const DEVICE_REGISTERS = {
-    SET_CTRL: 0x100000,
-    WRITE_AD: 0x800000, // Регистр для записи данных
-    SET_FREQ: 0x400000,
-    // ... и т.д.
-};
+let simulator = new DDSDeviceSimulator();
 
-export const USB = {
-    VENDOR_ID: 0x16c0,
-    PRODUCT_ID: 0x05df,
-    NAME: 'TorDDS',
-}
+export class DeviceService {
+    private device: HIDDevice | null = null;
+    private useSimulator = false;
 
-/**
- * Имитация отправки низкоуровневой команды на устройство.
- */
-export const sendCommand = async (commandId: number, dataValue: number): Promise<boolean> => {
-    // В реальном проекте здесь был бы вызов node-hid или WebUSB API
-    await new Promise(resolve => setTimeout(resolve, 50)); // Имитация задержки I/O операции
+    async requestDevice(): Promise<TorDDSDevice> {
+        if (!('hid' in navigator)) {
+            this.useSimulator = true;
+            return simulator;
+        }
 
-    console.log(`[COMMS] Отправлено: Cmd=0x${commandId.toString(16)}, Data=0x${dataValue.toString(16)}`);
-    return true; // Всегда успешно, если мы симулируем
-};
+        const devices = await navigator.hid.requestDevice({
+            filters: [{ vendorId: TOR_DDS_VENDOR_ID, productId: TOR_DDS_PRODUCT_ID }],
+        });
 
-/**
- * Полная процедура инициализации устройства (Сброс).
- */
-export const performDeviceInit = async () => {
-    console.log("[CORE] --- Начинаем процедуру сброса и настройки регистров ---");
-    await sendCommand(DEVICE_REGISTERS.SET_CTRL, 0x1); // Сбрасываем устройство
+        if (!devices || devices.length === 0) {
+            this.useSimulator = true;
+            return simulator;
+        }
 
-    // После сброса нужно обязательно отправить минимальные значения:
-    await sendCommand(DEVICE_REGISTERS.SET_FREQ, 0); // Устанавливаем частоту в ноль
-    await sendCommand(DEVICE_REGISTERS.WRITE_AD, 0); // Очищаем регистр данных
+        this.device = devices[0];
+        await this.device.open();
 
-    console.log("[CORE] Процедура инициализации завершена.");
-    return true;
-}
-
-/**
- * Главная логика подключения (самая сложная часть).
- */
-export const initializeConnection = async (): Promise<{ success: boolean, message: string }> => {
-    console.warn("--- Попытка обнаружения устройства ---");
-
-    // 1. Имитация сканирования порта
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Пауза на сканирование
-
-    const isFound = true; // Здесь будет реальная проверка VID/PID
-
-    if (!isFound) {
-        return { success: false, message: `❌ Устройство с ID ${USB.VENDOR_ID} не найдено.` };
+        return {
+            name: this.device.productName || 'TorDDS',
+            vendorId: TOR_DDS_VENDOR_ID,
+            productId: TOR_DDS_PRODUCT_ID,
+            sendFeatureReport: async (payload: TorDDSCommandPayload) => {
+                const data = new Uint8Array(3);
+                data[0] = payload.cmdByte;
+                data[1] = payload.dataWord & 0xff;
+                data[2] = (payload.dataWord >> 8) & 0xff;
+                await this.device!.sendFeatureReport(0, data);
+            },
+        };
     }
 
-    // 2. Инициализация успешно
-    const initSuccess = await performDeviceInit();
+    async sendCommand(
+        device: TorDDSDevice,
+        rawValue: number
+    ): Promise<void> {
+        const cmdByte = (rawValue >> 16) & 0xff;
+        const dataWord = rawValue & 0xffff;
 
-    if (initSuccess) {
-        return { success: true, message: '✅ Успешно подключено и инициализировано.' };
-    } else {
-        return { success: false, message: '❌ Ошибка при выполнении команд инициализации.' };
+        const payload: TorDDSCommandPayload = {
+            rawValue,
+            cmdByte,
+            dataWord,
+        };
+
+        await device.sendFeatureReport(payload);
     }
-};
+
+    async sendCommandByKey(
+        device: TorDDSDevice,
+        key: keyof typeof TOR_DDS_CMD,
+        data: number
+    ): Promise<void> {
+        const raw = TOR_DDS_CMD[key] + (data & 0xffff);
+        await this.sendCommand(device, raw);
+    }
+}
+
+export const deviceService = new DeviceService();
