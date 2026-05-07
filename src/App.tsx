@@ -174,6 +174,30 @@ function App() {
                         </ResponsiveContainer>
                     </div>
 
+                    <div className="lg:col-span-2 bg-[#1e1e1e] p-6 rounded-2xl border border-gray-800 shadow-xl flex flex-col gap-4">
+                        {/* 1. Детализация частоты и амплитуды (NEW) */}
+                        <div className="flex justify-between items-center text-sm p-3 bg-[#2a2a2a] rounded-lg border border-gray-700/50">
+                            <div>
+                                <p className="text-gray-500 uppercase text-xs">Текущая Частота:</p>
+                                {/* Здесь будет вывод рассчитанной частоты */}
+                                <span className="font-mono text-lg text-green-400">{currentFreqDisplay} Hz</span>
+                            </div>
+                            <div>
+                                <p className="text-gray-500 uppercase text-xs">Амплитуда (V):</p>
+                                <span className="font-mono text-xl text-yellow-400">{sineAmplitudeValue} V</span>
+                            </div>
+                        </div>
+
+                        {/* 2. Основной график */}
+                        <div>
+                            <label className="text-xs text-gray-500 uppercase font-bold tracking-wider mb-1 block">Сигнальная форма</label>
+                            <div className="h-64 w-full bg-black rounded-lg border border-gray-800 p-2">
+                                {/* Ваш LineChart остается здесь, но теперь он отображает сигнал для контекста */}
+                                {/* ... ResponsiveContainer с LineChart ... */}
+                            </div>
+                        </div>
+                    </div>
+
                     <div className="grid grid-cols-2 gap-8 mt-4">
                         <div className="space-y-4">
                             <div className="flex justify-between items-end">
@@ -211,6 +235,7 @@ function App() {
                 {isRunning && <div className="text-white">{`> Signal generation active at ${frequency} Hz. Wave: ${waveForm}`}</div>}
             </div>
         </div>
+
     );
 }
 
