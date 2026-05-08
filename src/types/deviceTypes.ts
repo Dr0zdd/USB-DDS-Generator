@@ -27,3 +27,14 @@ export interface ConnectionState {
     isInitialized: boolean;
     statusMessage: string;
 }
+
+export interface TorDDSState {
+    connected: boolean;
+    initialized: boolean;
+    ledOn: boolean;
+    frequencyHz: number;
+    sineAmplitude: number;
+    squareAmplitude: number;
+    squareEnabled: boolean;
+    waveform: 'sine' | 'triangle' | 'square';
+}

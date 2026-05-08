@@ -2,23 +2,24 @@ import {
     TOR_DDS_CMD,
     TOR_DDS_CONST,
     TorDDSCommandPayload,
-    TorDDSDevice,
-    TorDDSState,
-} from '../types/deviceTypes';
+} from '../types/ddsCommands';
+
+import { TorDDSDevice, TorDDSState } from '../types/deviceTypes';
 
 export class DDSDeviceSimulator implements TorDDSDevice {
+    id = 'simulator';
     name = 'TorDDS Simulator';
     vendorId = 0x16c0;
     productId = 0x05df;
 
     private state: TorDDSState = {
         connected: true,
-        initialized: false,
+        initialized: true,
         ledOn: false,
-        frequencyHz: 0,
-        sineAmplitude: 0,
-        squareAmplitude: 0,
-        squareEnabled: false,
+        frequencyHz: 1000,
+        sineAmplitude: 1,
+        squareAmplitude: 1,
+        squareEnabled: true,
         waveform: 'sine',
     };
 
@@ -26,63 +27,57 @@ export class DDSDeviceSimulator implements TorDDSDevice {
         return new Promise((resolve) => setTimeout(resolve, ms));
     }
 
-    async sendFeatureReport(payload: TorDDSCommandPayload): Promise<void> {
-        await this.delay(50);
+    async sendCommand(raw: number): Promise<void> {
+        await this.delay(10);
 
-        const cmd = payload.cmdByte << 16;
+        const cmd = raw & 0xFF0000;
+        const data = raw & 0x00FFFF;
 
-        if (cmd === TOR_DDS_CMD.SetLED) {
-            this.state.ledOn = payload.dataWord !== 0;
-            return;
+        switch (cmd) {
+            case TOR_DDS_CMD.SetSinAmpl:
+                this.state.sineAmplitude = data;
+                break;
+
+            case TOR_DDS_CMD.SetSqAmpl:
+                this.state.squareAmplitude = data;
+                break;
+
+            case TOR_DDS_CMD.EnaSqOut:
+                this.state.squareEnabled = data !== 0;
+                break;
+
+            case TOR_DDS_CMD.SetCtrlReg:
+                this.state.waveform = data === 1 ? 'triangle' : 'sine';
+                break;
+
+            case TOR_DDS_CMD.SetFreqReg:
+                this.state.frequencyHz = data;
+                break;
+
+            case TOR_DDS_CMD.AddFreqReg:
+                this.state.frequencyHz += data;
+                break;
         }
+    }
 
-        if (cmd === TOR_DDS_CMD.SetSinAmpl) {
-            this.state.sineAmplitude = payload.dataWord & 0xff;
-            return;
-        }
+    async setFrequency(hz: number): Promise<void> {
+        this.state.frequencyHz = hz;
+    }
 
-        if (cmd === TOR_DDS_CMD.SetSqAmpl) {
-            this.state.squareAmplitude = payload.dataWord & 0xff;
-            return;
-        }
+    async setSineAmplitude(v: number): Promise<void> {
+        this.state.sineAmplitude = v;
+    }
 
-        if (cmd === TOR_DDS_CMD.EnaSqOut) {
-            this.state.squareEnabled = payload.dataWord !== 0;
-            return;
-        }
+    async setSquareAmplitude(v: number): Promise<void> {
+        this.state.squareAmplitude = v;
+    }
 
-        if (cmd === TOR_DDS_CMD.SetCtrlReg) {
-            const triangle = (payload.dataWord & TOR_DDS_CONST.ModeTriangle) !== 0;
-            this.state.waveform = triangle ? 'triangle' : 'sine';
-            if (payload.dataWord & TOR_DDS_CONST.ResetDevice) {
-                this.state.initialized = false;
-                this.state.frequencyHz = 0;
-            } else {
-                this.state.initialized = true;
-            }
-            return;
-        }
+    async setWaveform(type: 'sine' | 'triangle' | 'square'): Promise<void> {
+        this.state.waveform = type;
+    }
 
-        if (cmd === TOR_DDS_CMD.SetFreqReg) {
-            const reg = payload.dataWord << 8;
-            const freq =
-                reg * (TOR_DDS_CONST.Fclk / TOR_DDS_CONST.FreqRes);
-            this.state.frequencyHz = freq;
-            return;
-        }
-
-        if (cmd === TOR_DDS_CMD.AddFreqReg) {
-            const delta = payload.dataWord - TOR_DDS_CONST.ZeroShift;
-            const currentReg = Math.round(
-                (this.state.frequencyHz * TOR_DDS_CONST.FreqRes) /
-                TOR_DDS_CONST.Fclk
-            );
-            const newReg = currentReg + delta;
-            const freq =
-                newReg * (TOR_DDS_CONST.Fclk / TOR_DDS_CONST.FreqRes);
-            this.state.frequencyHz = freq;
-            return;
-        }
+    async enableSquare(enabled: boolean): Promise<void> {
+        this.state.squareEnabled = enabled;
     }
 
     getState(): TorDDSState {
