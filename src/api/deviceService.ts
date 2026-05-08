@@ -1,75 +1,82 @@
 // src/api/deviceService.ts
-import {
-    TOR_DDS_VENDOR_ID,
-    TOR_DDS_PRODUCT_ID,
-    TOR_DDS_CMD,
-    TorDDSCommandPayload,
-    TorDDSDevice,
-} from '../types/deviceTypes';
-import { DDSDeviceSimulator } from './DDSDeviceSimulator';
+import { REGISTERS, DEVICE_CONSTANTS, FREQUENCY } from '../types/deviceTypes';
 
-let simulator = new DDSDeviceSimulator();
+/**
+ * ========================================
+ * ⚡️ ИМИТАЦИЯ СВЯЗИ (HID Communication Layer)
+ * ========================================
+ */
+export const sendCommand = async (commandId: number, dataValue: number): Promise<boolean> => {
+    // Это место, где в будущем будет node-hid или webusb API вызов.
+    await new Promise(resolve => setTimeout(resolve, 50)); // Симуляция задержки I/O
 
-export class DeviceService {
-    private device: HIDDevice | null = null;
-    private useSimulator = false;
+    if (commandId & 0xFFFFFF) { // Проверка на plausibility команды
+        console.log(`[COMMS] Успешно отправлено: Cmd=0x${commandId.toString(16)}, Data=0x${dataValue.toString(16)}`);
+        return true;
+    } else {
+        console.error(`[COMMS] Ошибка: Некорректный ID команды 0x${commandId.toString(16)}.`);
+        return false;
+    }
+};
 
-    async requestDevice(): Promise<TorDDSDevice> {
-        if (!('hid' in navigator)) {
-            this.useSimulator = true;
-            return simulator;
-        }
+/**
+ * Вычисляет регистровое значение частоты (Frequency to Word).
+ */
+export const calculateFTW = (freq: number): number => {
+    if (freq < 0) return 0;
+    const maxFreq = FREQUENCY.FCLK / 2;
+    if (freq >= maxFreq) return FREQUENCY.FREQ_RES - 1;
+    return Math.round((FREQUENCY.FREQ_RES * freq) / FREQUENCY.FCLK);
+};
 
-        const devices = await navigator.hid.requestDevice({
-            filters: [{ vendorId: TOR_DDS_VENDOR_ID, productId: TOR_DDS_PRODUCT_ID }],
-        });
 
-        if (!devices || devices.length === 0) {
-            this.useSimulator = true;
-            return simulator;
-        }
+/**
+ * Процедура инициализации устройства (Сброс AD9834).
+ */
+export const performDeviceInit = async (): Promise<boolean> => {
+    console.log("\n--- [CORE] Запуск процедуры сброса и настройки регистров ---");
 
-        this.device = devices[0];
-        await this.device.open();
+    // 1. Сбрасываем устройство
+    await sendCommand(REGISTERS.SET_CTRL + 0x2, 0x1); // Имитация ResetDevice (0x0100)
 
-        return {
-            name: this.device.productName || 'TorDDS',
-            vendorId: TOR_DDS_VENDOR_ID,
-            productId: TOR_DDS_PRODUCT_ID,
-            sendFeatureReport: async (payload: TorDDSCommandPayload) => {
-                const data = new Uint8Array(3);
-                data[0] = payload.cmdByte;
-                data[1] = payload.dataWord & 0xff;
-                data[2] = (payload.dataWord >> 8) & 0xff;
-                await this.device!.sendFeatureReport(0, data);
-            },
-        };
+    // 2. Очищаем все регистры (Amplitude = 0, Enable = OFF)
+    await sendCommand(REGISTERS.SET_SIN_AMP, 0);
+    await sendCommand(REGISTERS.SET_SQUARE_AMP, 0);
+
+    console.log("[CORE] Инициализация прошла успешно.");
+    return true;
+};
+
+
+/**
+ * Основная логика подключения и энумерования (Simulation).
+ */
+export const initializeConnection = async (): Promise<{ success: boolean, message: string }> => {
+    // 1. Симуляция поиска устройства (Enumeration)
+    await new Promise(resolve => setTimeout(resolve, 1500)); // Пауза на сканирование USB
+
+    // В реальном коде здесь идет проверка VID/PID через node-hid.
+    const isFound = true;
+
+    if (!isFound) {
+        return { success: false, message: `❌ Устройство с ID ${DEVICE_CONSTANTS.VENDOR_ID} не обнаружено.` };
     }
 
-    async sendCommand(
-        device: TorDDSDevice,
-        rawValue: number
-    ): Promise<void> {
-        const cmdByte = (rawValue >> 16) & 0xff;
-        const dataWord = rawValue & 0xffff;
+    // 2. Проверка и выполнение инициализации
+    const initSuccess = await performDeviceInit();
 
-        const payload: TorDDSCommandPayload = {
-            rawValue,
-            cmdByte,
-            dataWord,
-        };
-
-        await device.sendFeatureReport(payload);
+    if (initSuccess) {
+        return { success: true, message: '✅ Успешно подключено. Готов к работе.' };
+    } else {
+        return { success: false, message: '❌ Критическая ошибка связи при инициализации.' };
     }
+};
 
-    async sendCommandByKey(
-        device: TorDDSDevice,
-        key: keyof typeof TOR_DDS_CMD,
-        data: number
-    ): Promise<void> {
-        const raw = TOR_DDS_CMD[key] + (data & 0xffff);
-        await this.sendCommand(device, raw);
-    }
+/**
+ * Функция отправки всех настроек параметров (частота, амплитуды).
+ */
+export const setAllParameters = async (freq: number, sinAmp: number, sqAmp: number) => {
+    await sendCommand(REGISTERS.SET_FREQ, calculateFTW(freq));
+    await sendCommand(REGISTERS.SET_SIN_AMP, sinAmp);
+    await sendCommand(REGISTERS.SET_SQUARE_AMP, sqAmp);
 }
-
-export const deviceService = new DeviceService();

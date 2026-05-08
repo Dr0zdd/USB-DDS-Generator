@@ -1,66 +1,30 @@
-export const TOR_DDS_VENDOR_ID = 0x16c0;
-export const TOR_DDS_PRODUCT_ID = 0x05df;
-export const TOR_DDS_PRODUCT_NAME = 'TorDDS';
+// src/types/deviceTypes.ts
 
+export const DEVICE_CONSTANTS = {
+    VENDOR_ID: 0x16c0,
+    PRODUCT_ID: 0x05df,
+    NAME: 'TorDDS',
+};
 
-export const TOR_DDS_CMD = {
-    AddFreqReg: 0x800000,
-    SetFreqReg: 0x400000,
-    SetPhaseReg: 0x200000,
-    SetCtrlReg: 0x100000,
-    WriteToAD: 0x080000,
-    SetSinAmpl: 0x040000,
-    SetSqAmpl: 0x020000,
-    EnaSqOut: 0x010000,
-    SetLED: 0x000000,
-} as const;
+// Адреса регистров (имитация)
+export const REGISTERS = {
+    SET_CTRL: 0x100000, // Управление режимом/сбросом
+    WRITE_AD: 0x800000, // Регистр для записи данных AD9834
+    SET_FREQ: 0x400000,
+    SET_SIN_AMP: 0x200000,
+    SET_SQUARE_AMP: 0x100000,
+    ENA_SQUARE_OUT: 0x080000,
+    // ... добавить все остальные константы из Delphi
+};
 
-export type TorDDSCommandKey = keyof typeof TOR_DDS_CMD;
+export const FREQUENCY = {
+    FCLK: 50000000, // Тактовая частота (Hz)
+    FREQ_RES: 10000000, // Разрешение регистра (2^28)
+    MAX_DELTA_F: 0x3FFFFF,
+};
 
-
-export const TOR_DDS_CONST = {
-    InitWord: 0x2000,
-    MaxDeltaF: 0x3fffff,
-    ZeroShift: 0x400000,
-    MaskFP: 0x0c0000,
-    ModeTriangle: 0x02,
-    ResetDevice: 0x0100,
-    Fclk: 50_000_000,
-    FreqRes: 0x10000000,
-} as const;
-
-
-export type FrequencyHz = number;
-
-
-export type AmplitudeLevel = number;
-
-
-export type WaveformType = 'sine' | 'triangle';
-
-
-export interface TorDDSState {
-    connected: boolean;
-    initialized: boolean;
-    ledOn: boolean;
-
-    frequencyHz: FrequencyHz;
-    sineAmplitude: AmplitudeLevel;
-    squareAmplitude: AmplitudeLevel;
-    squareEnabled: boolean;
-    waveform: WaveformType;
-}
-
-export interface TorDDSCommandPayload {
-    rawValue: number;
-    cmdByte: number;
-    dataWord: number;
-}
-
-export interface TorDDSDevice {
-    name: string;
-    vendorId: number;
-    productId: number;
-
-    sendFeatureReport(payload: TorDDSCommandPayload): Promise<void>;
-}
+export type ConnectionState = {
+    isConnected: boolean;
+    isInitialized: boolean;
+    statusMessage: string;
+};
