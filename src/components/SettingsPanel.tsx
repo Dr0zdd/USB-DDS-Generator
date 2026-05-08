@@ -1,109 +1,94 @@
 // src/components/SettingsPanel.tsx
-import React, { useState } from 'react';
-import { TorDDSDevice, WaveformType } from '../types/deviceTypes';
-import { useDDSControl } from '../hooks/useDDSControl';
+import React from 'react';
 
-interface Props {
-    device: TorDDSDevice | null;
-    onWaveformChange: (w: WaveformType) => void;
-    onFrequencyChange: (hz: number) => void;
-    onTimeScaleChange: (ms: number) => void;
+interface SettingsPanelProps {
+    frequency: number;
+    setFrequency: (v: number) => void;
+
+    sineAmplitude: number;
+    setSineAmplitude: (v: number) => void;
+
+    squareAmplitude: number;
+    setSquareAmplitude: (v: number) => void;
+
+    isSquareEnabled: boolean;
+    setIsSquareEnabled: (v: boolean) => void;
 }
 
-export const SettingsPanel: React.FC<Props> = ({
-                                                   device,
-                                                   onWaveformChange,
-                                                   onFrequencyChange,
-                                                   onTimeScaleChange,
-                                               }) => {
-    const {
-        frequency,
-        sineAmplitude,
-        squareAmplitude,
-        squareEnabled,
-        waveform,
-        updateFrequency,
-        updateSineAmplitude,
-        updateSquareAmplitude,
-        toggleSquare,
-        setWaveformType,
-    } = useDDSControl(device);
+const SettingsPanel: React.FC<SettingsPanelProps> = ({
+                                                         frequency,
+                                                         setFrequency,
 
-    const MIN_FREQ = 0.1;
-    const MAX_FREQ = 1_000_000;
+                                                         sineAmplitude,
+                                                         setSineAmplitude,
 
-    const [freqInput, setFreqInput] = useState(frequency.toString());
-    const [timeScale, setTimeScale] = useState(10);
+                                                         squareAmplitude,
+                                                         setSquareAmplitude,
 
-    const changeWaveform = (type: WaveformType) => {
-        setWaveformType(type);
-        onWaveformChange(type);
-    };
-
+                                                         isSquareEnabled,
+                                                         setIsSquareEnabled
+                                                     }) => {
     return (
-        <div className="flex flex-col gap-6 p-6 bg-gray-800 rounded-xl text-white w-full max-w-xl">
+        <div className="flex flex-col gap-6">
 
             {/* Частота */}
-            <div className="flex flex-col gap-2">
-                <label className="text-sm">Частота (Гц)</label>
+            <div className="flex flex-col">
+                <label className="text-gray-300 font-mono mb-1">Частота (Гц)</label>
                 <input
                     type="number"
-                    value={freqInput}
-                    onChange={(e) => setFreqInput(e.target.value)}
-                    onBlur={() => {
-                        let hz = Number(freqInput);
-
-                        if (hz < MIN_FREQ) hz = MIN_FREQ;
-                        if (hz > MAX_FREQ) hz = MAX_FREQ;
-
-                        setFreqInput(hz.toString());
-                        updateFrequency(hz);
-                        onFrequencyChange(hz);
-                    }}
-                    className="px-3 py-2 rounded bg-gray-700 outline-none"
+                    value={frequency}
+                    min={0.1}
+                    max={1_000_000}
+                    step={0.1}
+                    onChange={(e) => setFrequency(Number(e.target.value))}
+                    className="p-2 rounded bg-[#2a2a2a] border border-gray-700 text-white"
                 />
-                <div className="text-xs text-gray-400">
-                    Диапазон: {MIN_FREQ} Гц — {MAX_FREQ.toLocaleString()} Гц
-                </div>
+                <span className="text-gray-500 text-sm font-mono">
+                    Диапазон: 0.1 Гц — 1 000 000 Гц
+                </span>
             </div>
 
-            {/* Развёртка */}
-            <div className="flex flex-col gap-2">
-                <label className="text-sm">Развёртка (ms/div)</label>
-                <select
-                    value={timeScale}
-                    onChange={(e) => {
-                        const ms = Number(e.target.value);
-                        setTimeScale(ms);
-                        onTimeScaleChange(ms);
-                    }}
-                    className="px-3 py-2 rounded bg-gray-700"
-                >
-                    <option value={1}>1 ms/div</option>
-                    <option value={5}>5 ms/div</option>
-                    <option value={10}>10 ms/div</option>
-                    <option value={20}>20 ms/div</option>
-                    <option value={50}>50 ms/div</option>
-                    <option value={100}>100 ms/div</option>
-                </select>
+            {/* Амплитуда синуса */}
+            <div className="flex flex-col">
+                <label className="text-gray-300 font-mono mb-1">Амплитуда синуса (В)</label>
+                <input
+                    type="number"
+                    value={sineAmplitude}
+                    min={0}
+                    max={5}
+                    step={0.1}
+                    onChange={(e) => setSineAmplitude(Number(e.target.value))}
+                    className="p-2 rounded bg-[#2a2a2a] border border-gray-700 text-white"
+                />
             </div>
 
-            {/* Выбор формы сигнала */}
-            <div className="flex gap-4">
-                <button
-                    onClick={() => changeWaveform('sine')}
-                    className={`px-4 py-2 rounded ${waveform === 'sine' ? 'bg-blue-600' : 'bg-gray-700'}`}
-                >
-                    Синус
-                </button>
-
-                <button
-                    onClick={() => changeWaveform('triangle')}
-                    className={`px-4 py-2 rounded ${waveform === 'triangle' ? 'bg-blue-600' : 'bg-gray-700'}`}
-                >
-                    Треугольник
-                </button>
+            {/* Амплитуда меандра */}
+            <div className="flex flex-col">
+                <label className="text-gray-300 font-mono mb-1">Амплитуда меандра (В)</label>
+                <input
+                    type="number"
+                    value={squareAmplitude}
+                    min={0}
+                    max={5}
+                    step={0.1}
+                    onChange={(e) => setSquareAmplitude(Number(e.target.value))}
+                    className="p-2 rounded bg-[#2a2a2a] border border-gray-700 text-white"
+                />
             </div>
+
+            {/* Включение/выключение меандра */}
+            <div className="flex items-center gap-3">
+                <input
+                    type="checkbox"
+                    checked={isSquareEnabled}
+                    onChange={(e) => setIsSquareEnabled(e.target.checked)}
+                    className="w-5 h-5"
+                />
+                <label className="text-gray-300 font-mono">Включить меандр</label>
+            </div>
+
         </div>
     );
 };
+
+export default SettingsPanel;

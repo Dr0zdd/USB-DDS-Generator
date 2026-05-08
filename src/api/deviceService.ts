@@ -1,82 +1,67 @@
 // src/api/deviceService.ts
-import { REGISTERS, DEVICE_CONSTANTS, FREQUENCY } from '../types/deviceTypes';
+// Унифицированный сервис для отправки команд на DDS-генератор
 
-/**
- * ========================================
- * ⚡️ ИМИТАЦИЯ СВЯЗИ (HID Communication Layer)
- * ========================================
- */
-export const sendCommand = async (commandId: number, dataValue: number): Promise<boolean> => {
-    // Это место, где в будущем будет node-hid или webusb API вызов.
-    await new Promise(resolve => setTimeout(resolve, 50)); // Симуляция задержки I/O
+// Если позже добавишь WebUSB/WebSerial — просто заменишь sendRawCommand()
 
-    if (commandId & 0xFFFFFF) { // Проверка на plausibility команды
-        console.log(`[COMMS] Успешно отправлено: Cmd=0x${commandId.toString(16)}, Data=0x${dataValue.toString(16)}`);
-        return true;
-    } else {
-        console.error(`[COMMS] Ошибка: Некорректный ID команды 0x${commandId.toString(16)}.`);
-        return false;
-    }
-};
+// -----------------------------
+// 1. БАЗОВАЯ ОТПРАВКА КОМАНД
+// -----------------------------
+import {TorDDSDevice} from "../types/deviceTypes";
 
-/**
- * Вычисляет регистровое значение частоты (Frequency to Word).
- */
-export const calculateFTW = (freq: number): number => {
-    if (freq < 0) return 0;
-    const maxFreq = FREQUENCY.FCLK / 2;
-    if (freq >= maxFreq) return FREQUENCY.FREQ_RES - 1;
-    return Math.round((FREQUENCY.FREQ_RES * freq) / FREQUENCY.FCLK);
-};
-
-
-/**
- * Процедура инициализации устройства (Сброс AD9834).
- */
-export const performDeviceInit = async (): Promise<boolean> => {
-    console.log("\n--- [CORE] Запуск процедуры сброса и настройки регистров ---");
-
-    // 1. Сбрасываем устройство
-    await sendCommand(REGISTERS.SET_CTRL + 0x2, 0x1); // Имитация ResetDevice (0x0100)
-
-    // 2. Очищаем все регистры (Amplitude = 0, Enable = OFF)
-    await sendCommand(REGISTERS.SET_SIN_AMP, 0);
-    await sendCommand(REGISTERS.SET_SQUARE_AMP, 0);
-
-    console.log("[CORE] Инициализация прошла успешно.");
-    return true;
-};
-
-
-/**
- * Основная логика подключения и энумерования (Simulation).
- */
-export const initializeConnection = async (): Promise<{ success: boolean, message: string }> => {
-    // 1. Симуляция поиска устройства (Enumeration)
-    await new Promise(resolve => setTimeout(resolve, 1500)); // Пауза на сканирование USB
-
-    // В реальном коде здесь идет проверка VID/PID через node-hid.
-    const isFound = true;
-
-    if (!isFound) {
-        return { success: false, message: `❌ Устройство с ID ${DEVICE_CONSTANTS.VENDOR_ID} не обнаружено.` };
-    }
-
-    // 2. Проверка и выполнение инициализации
-    const initSuccess = await performDeviceInit();
-
-    if (initSuccess) {
-        return { success: true, message: '✅ Успешно подключено. Готов к работе.' };
-    } else {
-        return { success: false, message: '❌ Критическая ошибка связи при инициализации.' };
-    }
-};
-
-/**
- * Функция отправки всех настроек параметров (частота, амплитуды).
- */
-export const setAllParameters = async (freq: number, sinAmp: number, sqAmp: number) => {
-    await sendCommand(REGISTERS.SET_FREQ, calculateFTW(freq));
-    await sendCommand(REGISTERS.SET_SIN_AMP, sinAmp);
-    await sendCommand(REGISTERS.SET_SQUARE_AMP, sqAmp);
+async function sendRawCommand(cmd: number): Promise<void> {
+    console.log("[deviceService] → CMD:", cmd.toString(16));
+    // TODO: здесь будет реальная отправка в устройство
+    await new Promise(res => setTimeout(res, 5));
 }
+
+// -----------------------------
+// 2. КОМАНДЫ DDS (FTW, амплитуды и т.д.)
+// -----------------------------
+
+// Пример расчёта FTW (Frequency Tuning Word)
+export function calculateFTW(frequencyHz: number): number {
+    const DDS_CLOCK = 125_000_000; // 125 MHz
+    return Math.floor((frequencyHz * (2 ** 32)) / DDS_CLOCK);
+}
+
+// -----------------------------
+// 3. УСТАНОВКА ВСЕХ ПАРАМЕТРОВ
+// -----------------------------
+export async function setAllParameters(
+    frequencyHz: number,
+    sineAmplitude: number,
+    squareAmplitude: number
+): Promise<void> {
+
+    console.log("[deviceService] Запись параметров:");
+    console.log("  Частота:", frequencyHz);
+    console.log("  Амплитуда синуса:", sineAmplitude);
+    console.log("  Амплитуда меандра:", squareAmplitude);
+
+    const ftw = calculateFTW(frequencyHz);
+
+    // Здесь будут реальные команды DDS
+    await sendRawCommand(0xA0000000 | ftw); // пример
+    await sendRawCommand(0xB0000000 | Math.floor(sineAmplitude * 255));
+    await sendRawCommand(0xC0000000 | Math.floor(squareAmplitude * 255));
+
+    console.log("[deviceService] ✔ Параметры записаны");
+}
+
+// -----------------------------
+// 4. Экспорт API
+// -----------------------------
+export const deviceService = {
+    sendRawCommand,
+    sendCommand,
+    calculateFTW,
+    setAllParameters,
+};
+
+async function sendCommand(device: TorDDSDevice, raw: number): Promise<void> {
+    console.log("[deviceService] → CMD:", raw.toString(16));
+    await device.sendCommand(raw); // если устройство умеет
+}
+
+
+

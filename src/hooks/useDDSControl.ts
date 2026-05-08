@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react';
 import { deviceService } from '../api/deviceService';
+import { TOR_DDS_CMD } from '../types/ddsCommands';
 import {
-    TOR_DDS_CMD,
     TorDDSDevice,
     WaveformType,
 } from '../types/deviceTypes';

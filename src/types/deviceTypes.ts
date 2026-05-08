@@ -1,22 +1,29 @@
 // src/types/deviceTypes.ts
 
-export const DEVICE_CONSTANTS = {
-    VENDOR_ID: 0x16c0, // VID из Delphi кода
-    PRODUCT_ID: 0x05df,  // PID из Delphi кода
-    NAME: 'TorDDS',
-};
+// Тип формы сигнала (для осциллографа, настроек и API)
+export type WaveformType = 'sine' | 'triangle' | 'square';
 
-// Адреса регистров (сохраняем константы для чистоты)
-export const REGISTERS = {
-    SET_CTRL: 0x100000,
-    WRITE_AD: 0x800000,
-    SET_FREQ: 0x400000,
-    SET_SIN_AMP: 0x200000,
-    SET_SQUARE_AMP: 0x100000,
-};
+// Тип устройства DDS
+export interface TorDDSDevice {
+    id: string;
 
-export const FREQUENCY = {
-    FCLK: 50000000,
-    FREQ_RES: 10000000,
-    MAX_DELTA_F: 0x3FFFFF,
-};
+    // Частота
+    setFrequency: (hz: number) => Promise<void>;
+
+    // Амплитуды
+    setSineAmplitude: (value: number) => Promise<void>;
+    setSquareAmplitude: (value: number) => Promise<void>;
+
+    // Включение/выключение меандра
+    enableSquare: (enabled: boolean) => Promise<void>;
+
+    // Универсальная отправка команд
+    sendCommand: (cmd: number) => Promise<void>;
+}
+
+// Статус подключения (используется в useDeviceConnection)
+export interface ConnectionState {
+    isConnected: boolean;
+    isInitialized: boolean;
+    statusMessage: string;
+}

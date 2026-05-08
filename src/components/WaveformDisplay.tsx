@@ -2,13 +2,17 @@
 import React, { useRef, useEffect } from 'react';
 import { WaveformType } from '../types/deviceTypes';
 
-interface Props {
+interface WaveformDisplayProps {
     waveform: WaveformType;
     frequency: number;
-    timeScale: number; // ms/div
+    amplitude: number;
 }
 
-export const WaveformDisplay: React.FC<Props> = ({ waveform, frequency, timeScale }) => {
+const WaveformDisplay: React.FC<WaveformDisplayProps> = ({
+                                                             waveform,
+                                                             frequency,
+                                                             amplitude
+                                                         }) => {
     const canvasRef = useRef<HTMLCanvasElement | null>(null);
 
     useEffect(() => {
@@ -21,61 +25,79 @@ export const WaveformDisplay: React.FC<Props> = ({ waveform, frequency, timeScal
         const W = canvas.width;
         const H = canvas.height;
 
+        // Очистка
         ctx.clearRect(0, 0, W, H);
 
-        // сетка
-        ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+        // -----------------------------
+        // 1. Рисуем сетку (как Agilent)
+        // -----------------------------
+        ctx.strokeStyle = 'rgba(255,255,255,0.12)';
         ctx.lineWidth = 1;
 
-        for (let x = 0; x < W; x += 60) {
+        const gridX = 60; // 10 делений по 60px
+        const gridY = 50;
+
+        for (let x = 0; x < W; x += gridX) {
             ctx.beginPath();
             ctx.moveTo(x, 0);
             ctx.lineTo(x, H);
             ctx.stroke();
         }
 
-        for (let y = 0; y < H; y += 50) {
+        for (let y = 0; y < H; y += gridY) {
             ctx.beginPath();
             ctx.moveTo(0, y);
             ctx.lineTo(W, y);
             ctx.stroke();
         }
 
-        // волна
+        // -----------------------------
+        // 2. Рисуем волну
+        // -----------------------------
         ctx.strokeStyle = '#4ade80';
         ctx.lineWidth = 2;
         ctx.beginPath();
 
-        // 🔥 Время на экран (как в осциллографе)
-        const totalMs = timeScale * 10; // 10 делений
+        // Время на экран (как на реальном осциллографе)
+        // 10 делений * 10 ms/div = 100 ms
+        const timePerDiv = 10; // ms/div
+        const totalMs = timePerDiv * 10;
         const totalSec = totalMs / 1000;
 
-        // 🔥 Сколько периодов поместится
+        // Сколько периодов помещается
         const periods = frequency * totalSec;
 
         for (let x = 0; x < W; x++) {
             const t = (x / W) * periods * 2 * Math.PI;
 
-            let y;
+            let yNorm = 0;
+
             if (waveform === 'sine') {
-                y = Math.sin(t);
-            } else {
+                yNorm = Math.sin(t);
+            } else if (waveform === 'triangle') {
                 const tri = (t % (2 * Math.PI)) / (2 * Math.PI);
-                y = tri < 0.5 ? tri * 4 - 1 : 3 - tri * 4;
+                yNorm = tri < 0.5 ? tri * 4 - 1 : 3 - tri * 4;
+            } else if (waveform === 'square') {
+                yNorm = Math.sin(t) >= 0 ? 1 : -1;
             }
 
-            const yy = H / 2 - y * (H / 3);
+            const y = H / 2 - yNorm * (H / 3) * amplitude;
 
-            if (x === 0) ctx.moveTo(x, yy);
-            else ctx.lineTo(x, yy);
+            if (x === 0) ctx.moveTo(x, y);
+            else ctx.lineTo(x, y);
         }
 
         ctx.stroke();
-    }, [waveform, frequency, timeScale]);
+    }, [waveform, frequency, amplitude]);
 
     return (
-        <div className="bg-gray-800 p-4 rounded-xl">
-            <canvas ref={canvasRef} width={600} height={250} />
-        </div>
+        <canvas
+            ref={canvasRef}
+            width={600}
+            height={250}
+            className="rounded-lg bg-black"
+        />
     );
 };
+
+export default WaveformDisplay;
