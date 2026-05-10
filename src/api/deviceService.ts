@@ -1,67 +1,112 @@
-// src/api/deviceService.ts
-// Унифицированный сервис для отправки команд на DDS-генератор
+import {
+    TOR_DDS_CMD,
+    TOR_DDS_CONST,
+    TorDDSCommandPayload,
+} from '../types/ddsCommands';
 
-// Если позже добавишь WebUSB/WebSerial — просто заменишь sendRawCommand()
+import { TorDDSDevice, TorDDSState, WaveformType } from '../types/deviceTypes';
 
-// -----------------------------
-// 1. БАЗОВАЯ ОТПРАВКА КОМАНД
-// -----------------------------
-import {TorDDSDevice} from "../types/deviceTypes";
-
-async function sendRawCommand(cmd: number): Promise<void> {
-    console.log("[deviceService] → CMD:", cmd.toString(16));
-    // TODO: здесь будет реальная отправка в устройство
-    await new Promise(res => setTimeout(res, 5));
+export async function setAllParameters(params: any) {
+    // TODO
 }
 
-// -----------------------------
-// 2. КОМАНДЫ DDS (FTW, амплитуды и т.д.)
-// -----------------------------
+export class DDSDeviceSimulator implements TorDDSDevice {
+    id = 'simulator';
+    name = 'TorDDS Simulator';
+    vendorId = 0x16c0;
+    productId = 0x05df;
 
-// Пример расчёта FTW (Frequency Tuning Word)
-export function calculateFTW(frequencyHz: number): number {
-    const DDS_CLOCK = 125_000_000; // 125 MHz
-    return Math.floor((frequencyHz * (2 ** 32)) / DDS_CLOCK);
+    private state: TorDDSState = {
+        connected: true,
+        initialized: true,
+        ledOn: false,
+        frequencyHz: 100,
+        sineAmplitude: 1,
+        squareAmplitude: 1,
+        squareEnabled: true,
+        waveform: 'sine',
+    };
+
+    private delay(ms: number) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+    }
+
+    async sendCommand(cmd: number): Promise<void> {
+        await this.delay(10);
+
+        const opcode = cmd & 0xff0000;
+        const data = cmd & 0x00ffff;
+
+        switch (opcode) {
+            case TOR_DDS_CMD.SetLED:
+                this.state.ledOn = data !== 0;
+                break;
+
+            case TOR_DDS_CMD.SetSinAmpl:
+                this.state.sineAmplitude = data;
+                break;
+
+            case TOR_DDS_CMD.SetSqAmpl:
+                this.state.squareAmplitude = data;
+                break;
+
+            case TOR_DDS_CMD.EnaSqOut:
+                this.state.squareEnabled = data !== 0;
+                break;
+
+            case TOR_DDS_CMD.SetCtrlReg: {
+                const triangle = (data & TOR_DDS_CONST.ModeTriangle) !== 0;
+                this.state.waveform = triangle ? 'triangle' : 'sine';
+                if (data & TOR_DDS_CONST.ResetDevice) {
+                    this.state.initialized = false;
+                    this.state.frequencyHz = 0;
+                } else {
+                    this.state.initialized = true;
+                }
+                break;
+            }
+
+            case TOR_DDS_CMD.SetFreqReg: {
+                const reg = data << 8;
+                const freq = reg * (TOR_DDS_CONST.Fclk / TOR_DDS_CONST.FreqRes);
+                this.state.frequencyHz = freq;
+                break;
+            }
+
+            case TOR_DDS_CMD.AddFreqReg: {
+                const delta = data - TOR_DDS_CONST.ZeroShift;
+                const currentReg = Math.round(
+                    (this.state.frequencyHz * TOR_DDS_CONST.FreqRes) / TOR_DDS_CONST.Fclk,
+                );
+                const newReg = currentReg + delta;
+                const freq = newReg * (TOR_DDS_CONST.Fclk / TOR_DDS_CONST.FreqRes);
+                this.state.frequencyHz = freq;
+                break;
+            }
+        }
+    }
+
+    async setFrequency(hz: number): Promise<void> {
+        this.state.frequencyHz = hz;
+    }
+
+    async setSineAmplitude(value: number): Promise<void> {
+        this.state.sineAmplitude = value;
+    }
+
+    async setSquareAmplitude(value: number): Promise<void> {
+        this.state.squareAmplitude = value;
+    }
+
+    async enableSquare(enabled: boolean): Promise<void> {
+        this.state.squareEnabled = enabled;
+    }
+
+    async setWaveform(type: WaveformType): Promise<void> {
+        this.state.waveform = type;
+    }
+
+    getState(): TorDDSState {
+        return { ...this.state };
+    }
 }
-
-// -----------------------------
-// 3. УСТАНОВКА ВСЕХ ПАРАМЕТРОВ
-// -----------------------------
-export async function setAllParameters(
-    frequencyHz: number,
-    sineAmplitude: number,
-    squareAmplitude: number
-): Promise<void> {
-
-    console.log("[deviceService] Запись параметров:");
-    console.log("  Частота:", frequencyHz);
-    console.log("  Амплитуда синуса:", sineAmplitude);
-    console.log("  Амплитуда меандра:", squareAmplitude);
-
-    const ftw = calculateFTW(frequencyHz);
-
-    // Здесь будут реальные команды DDS
-    await sendRawCommand(0xA0000000 | ftw); // пример
-    await sendRawCommand(0xB0000000 | Math.floor(sineAmplitude * 255));
-    await sendRawCommand(0xC0000000 | Math.floor(squareAmplitude * 255));
-
-    console.log("[deviceService] ✔ Параметры записаны");
-}
-
-// -----------------------------
-// 4. Экспорт API
-// -----------------------------
-export const deviceService = {
-    sendRawCommand,
-    sendCommand,
-    calculateFTW,
-    setAllParameters,
-};
-
-async function sendCommand(device: TorDDSDevice, raw: number): Promise<void> {
-    console.log("[deviceService] → CMD:", raw.toString(16));
-    await device.sendCommand(raw); // если устройство умеет
-}
-
-
-

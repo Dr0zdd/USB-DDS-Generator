@@ -1,4 +1,3 @@
-// src/components/SignalReadouts.tsx
 import React from 'react';
 
 interface SignalReadoutsProps {

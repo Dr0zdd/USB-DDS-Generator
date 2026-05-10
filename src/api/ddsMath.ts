@@ -1,4 +1,4 @@
-import { TOR_DDS_CONST } from '../types/deviceTypes';
+import { TOR_DDS_CONST } from '../types/ddsCommands';
 
 export function getCurrentFrequency(currentFreqReg: number): number {
     return currentFreqReg * (TOR_DDS_CONST.Fclk / TOR_DDS_CONST.FreqRes);

@@ -46,7 +46,6 @@ const WaveformDisplay: React.FC<WaveformDisplayProps> = ({
         const totalMs = Math.max(0.001, timeScaleMsPerDiv * 10);
         const totalSec = totalMs / 1000;
 
-        // Ограничение визуальной скорости (чтобы не летело слишком быстро)
         const capFrequency = 50;
         const omegaCap = 2 * Math.PI * capFrequency;
 
